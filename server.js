@@ -4,7 +4,7 @@ const PORT = process.env.PORT || 3000;
 const SECRET_TOKEN = 'RP2P_TOKEN_SECURE_2026';
 const AGENT_SECRET_ATTENDU = 'RP2P-SOUVERAIN-PORTAL-2026';
 
-let tableConnectes = []; // Notre annuaire unique en mémoire vive
+let tableConnectes = []; // Registre unique en RAM
 
 const server = http.createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json');
@@ -12,9 +12,7 @@ const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-RP2P-Signature');
 
-  if (req.method === 'OPTIONS') {
-    res.writeHead(200); res.end(); return;
-  }
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
 
   const agentRecu = req.headers['x-rp2p-signature'];
   if (req.method !== 'POST' || agentRecu !== AGENT_SECRET_ATTENDU) {
@@ -31,22 +29,30 @@ const server = http.createServer((req, res) => {
         res.writeHead(403); res.end(JSON.stringify({ error: 'Jeton invalide.' })); return;
       }
 
-      // 1. MISE À JOUR : On écoute le cri de la machine (Sans stocker l'IP)
+      // ⏱️ NETTOYAGE STRICT (33 SECONDES) : On vire d'abord les morts du registre mondial
+      const limiteHeure = Date.now() - 33000;
+      tableConnectes = tableConnectes.filter(u => u.timestamp > limiteHeure);
+
+      // 🟢 LA LOGIQUE SOUVERAINE ADMIN DE LECTURE SEULE
+      if (input.action === "READ_ONLY") {
+        // L'admin veut juste voir la liste, on n'ajoute RIEN dans la table.
+        res.writeHead(200);
+        res.end(JSON.stringify(tableConnectes));
+        return;
+      }
+
+      // 👤 LOGIQUE UTILISATEUR NORMAL : Inscription / Pulsation standard
       if (input.username && input.alias) {
         tableConnectes = tableConnectes.filter(u => u.username !== input.username);
         tableConnectes.push({
           username: input.username,
           alias: input.alias,
           port: input.port || 9878,
-          timestamp: Date.now() // Marqueur de temps pour les 33 secondes
+          timestamp: Date.now()
         });
       }
 
-      // 2. NETTOYAGE STRICT (33 SECONDES) : Si inactif depuis > 33 secondes, on supprime
-      const limiteHeure = Date.now() - 33000;
-      tableConnectes = tableConnectes.filter(u => u.timestamp > limiteHeure);
-
-      // 3. RÉPONSE SIMULTANÉE : On renvoie la liste épurée
+      // Renvoi simultané de la liste mise à jour
       res.writeHead(200);
       res.end(JSON.stringify(tableConnectes));
 
@@ -57,5 +63,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Fichier central RP2P actif sans IP sur le port ${PORT}`);
+  console.log(`Fichier central RP2P actif sur le port ${PORT}`);
 });
